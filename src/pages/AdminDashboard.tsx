@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,7 +60,7 @@ const AdminDashboard = () => {
 
   const handleTransactionAction = (id: string, action: 'approve' | 'reject') => {
     const updatedTransactions = transactions.map(tx => 
-      tx.id === id ? { ...tx, status: action === 'approve' ? 'approved' : 'rejected' } : tx
+      tx.id === id ? { ...tx, status: action === 'approve' ? 'approved' as const : 'rejected' as const } : tx
     );
     setTransactions(updatedTransactions);
     localStorage.setItem('transactions', JSON.stringify(updatedTransactions));

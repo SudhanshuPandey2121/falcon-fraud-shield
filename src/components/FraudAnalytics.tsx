@@ -1,4 +1,3 @@
-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { TrendingUp, AlertTriangle, Activity, Shield } from "lucide-react";
@@ -15,7 +14,7 @@ interface FraudAnalyticsProps {
   transactions: Transaction[];
 }
 
-export const FraudAnalytics = ({ transactions }: FroudAnalyticsProps) => {
+export const FraudAnalytics = ({ transactions }: FraudAnalyticsProps) => {
   // Risk level distribution
   const riskDistribution = [
     { name: 'Low Risk', value: transactions.filter(t => t.riskLevel === 'low').length, color: '#10B981' },
