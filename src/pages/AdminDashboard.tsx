@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,27 +11,10 @@ import { FraudAnalytics } from "@/components/FraudAnalytics";
 import { supabase } from "@/integrations/supabase/client";
 import { advancedFraudDetection } from "@/utils/fraudDetection";
 import { toast } from "sonner";
+import type { Database } from "@/integrations/supabase/types";
 
-interface Transaction {
-  id: string;
-  amount: number;
-  channel: string;
-  beneficiary_name: string;
-  beneficiary_account: string;
-  beneficiary_phone: string;
-  beneficiary_ifsc: string;
-  sender_account: string;
-  sender_latitude?: number;
-  sender_longitude?: number;
-  risk_score: number;
-  anomaly_score: number;
-  risk_level: string; // Changed to string to match database type
-  fraud_probability: number;
-  status: string; // Changed to string to match database type
-  requires_review: boolean;
-  created_at: string;
-  updated_at: string;
-}
+// Use the database Transaction type directly
+type Transaction = Database['public']['Tables']['transactions']['Row'];
 
 interface AuditLog {
   id: string;
@@ -162,7 +144,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const getRiskBadgeColor = (level: string) => {
+  const getRiskBadgeColor = (level: string | null) => {
     switch (level) {
       case 'high': return 'destructive';
       case 'medium': return 'secondary';
@@ -171,7 +153,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const getStatusBadgeColor = (status: string) => {
+  const getStatusBadgeColor = (status: string | null) => {
     switch (status) {
       case 'approved': return 'default';
       case 'rejected': return 'destructive';
@@ -180,7 +162,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const formatLocation = (lat?: number, lng?: number) => {
+  const formatLocation = (lat?: number | null, lng?: number | null) => {
     if (!lat || !lng) return 'Location not available';
     return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
   };
@@ -327,11 +309,11 @@ const AdminDashboard = () => {
                       <TableCell>{transaction.beneficiary_name}</TableCell>
                       <TableCell>
                         <Badge variant={getRiskBadgeColor(transaction.risk_level)}>
-                          {transaction.risk_level.toUpperCase()}
+                          {(transaction.risk_level || 'unknown').toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono">{transaction.risk_score.toFixed(2)}</span>
+                        <span className="font-mono">{(transaction.risk_score || 0).toFixed(2)}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center text-sm">
@@ -341,7 +323,7 @@ const AdminDashboard = () => {
                       </TableCell>
                       <TableCell>
                         <Badge variant={getStatusBadgeColor(transaction.status)}>
-                          {transaction.status.toUpperCase()}
+                          {(transaction.status || 'unknown').toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
@@ -378,7 +360,7 @@ const AdminDashboard = () => {
                     <div>
                       <p className="font-medium">{log.action.replace('_', ' ').toUpperCase()}</p>
                       <p className="text-sm text-gray-600">
-                        Transaction: {log.transaction_id.substring(0, 8)}
+                        Transaction: {log.transaction_id?.substring(0, 8)}
                         {log.reason && ` - ${log.reason}`}
                       </p>
                     </div>
@@ -417,7 +399,7 @@ const AdminDashboard = () => {
                 <div>
                   <Label className="text-sm font-medium">Risk Level</Label>
                   <Badge variant={getRiskBadgeColor(selectedTransaction.risk_level)}>
-                    {selectedTransaction.risk_level.toUpperCase()}
+                    {(selectedTransaction.risk_level || 'unknown').toUpperCase()}
                   </Badge>
                 </div>
                 <div>
