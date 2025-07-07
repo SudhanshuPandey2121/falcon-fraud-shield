@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Shield, AlertTriangle, CheckCircle, XCircle, TrendingUp, Activity, Clock, MapPin } from "lucide-react";
 import { Link } from "react-router-dom";
 import { FraudAnalytics } from "@/components/FraudAnalytics";
@@ -25,9 +26,9 @@ interface Transaction {
   sender_longitude?: number;
   risk_score: number;
   anomaly_score: number;
-  risk_level: 'low' | 'medium' | 'high';
+  risk_level: string; // Changed to string to match database type
   fraud_probability: number;
-  status: 'pending' | 'approved' | 'rejected' | 'auto_approved';
+  status: string; // Changed to string to match database type
   requires_review: boolean;
   created_at: string;
   updated_at: string;
@@ -73,7 +74,7 @@ const AdminDashboard = () => {
       if (error) throw error;
 
       // Process transactions with fraud detection if needed
-      const processedTransactions = data.map(tx => {
+      const processedTransactions = (data || []).map(tx => {
         if (!tx.risk_score) {
           const analysis = advancedFraudDetection(tx);
           return { ...tx, ...analysis };
