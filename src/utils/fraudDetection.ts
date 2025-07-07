@@ -16,7 +16,7 @@ interface Transaction {
 interface FraudAnalysis {
   risk_score: number;
   anomaly_score: number;
-  risk_level: string; // Changed to string to match database
+  risk_level: "low" | "medium" | "high"; // Changed to match database type
   fraud_probability: number;
   requires_review: boolean;
 }
@@ -110,7 +110,7 @@ export const advancedFraudDetection = (transaction: Transaction): FraudAnalysis 
   anomalyScore = Math.max(0, Math.min(1, anomalyScore));
   
   // Determine risk level and review requirement
-  let riskLevel: string;
+  let riskLevel: "low" | "medium" | "high"; // Updated type annotation
   let requiresReview = true;
   
   if (riskScore > 0.7 || anomalyScore > 0.8) {
