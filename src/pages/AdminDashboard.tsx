@@ -16,6 +16,15 @@ import type { Database } from "@/integrations/supabase/types";
 // Use the database Transaction type directly
 type Transaction = Database['public']['Tables']['transactions']['Row'];
 
+// Extended transaction type that includes processed fraud data
+type ProcessedTransaction = Transaction & {
+  risk_score: number;
+  anomaly_score: number;
+  risk_level: "low" | "medium" | "high";
+  fraud_probability: number;
+  requires_review: boolean;
+};
+
 interface AuditLog {
   id: string;
   transaction_id: string;
@@ -27,7 +36,7 @@ interface AuditLog {
 }
 
 const AdminDashboard = () => {
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<ProcessedTransaction[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [stats, setStats] = useState({
     total: 0,
@@ -36,7 +45,7 @@ const AdminDashboard = () => {
     rejected: 0,
     pending: 0
   });
-  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<ProcessedTransaction | null>(null);
   const [reviewReason, setReviewReason] = useState("");
   const [isLoading, setIsLoading] = useState(true);
 
@@ -56,12 +65,26 @@ const AdminDashboard = () => {
       if (error) throw error;
 
       // Process transactions with fraud detection if needed
-      const processedTransactions = (data || []).map(tx => {
+      const processedTransactions: ProcessedTransaction[] = (data || []).map(tx => {
         if (!tx.risk_score) {
           const analysis = advancedFraudDetection(tx);
-          return { ...tx, ...analysis };
+          return { 
+            ...tx, 
+            risk_score: analysis.risk_score,
+            anomaly_score: analysis.anomaly_score,
+            risk_level: analysis.risk_level,
+            fraud_probability: analysis.fraud_probability,
+            requires_review: analysis.requires_review
+          };
         }
-        return tx;
+        return {
+          ...tx,
+          risk_score: tx.risk_score || 0,
+          anomaly_score: tx.anomaly_score || 0,
+          risk_level: (tx.risk_level as "low" | "medium" | "high") || "low",
+          fraud_probability: tx.fraud_probability || 0,
+          requires_review: tx.requires_review || true
+        };
       });
 
       setTransactions(processedTransactions);
@@ -97,7 +120,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleTransactionAction = async (transaction: Transaction, action: 'approve' | 'reject') => {
+  const handleTransactionAction = async (transaction: ProcessedTransaction, action: 'approve' | 'reject') => {
     if (!reviewReason.trim()) {
       toast.error('Please provide a reason for this action');
       return;
@@ -309,11 +332,11 @@ const AdminDashboard = () => {
                       <TableCell>{transaction.beneficiary_name}</TableCell>
                       <TableCell>
                         <Badge variant={getRiskBadgeColor(transaction.risk_level)}>
-                          {(transaction.risk_level || 'unknown').toUpperCase()}
+                          {transaction.risk_level.toUpperCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono">{(transaction.risk_score || 0).toFixed(2)}</span>
+                        <span className="font-mono">{transaction.risk_score.toFixed(2)}</span>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center text-sm">
@@ -399,7 +422,7 @@ const AdminDashboard = () => {
                 <div>
                   <Label className="text-sm font-medium">Risk Level</Label>
                   <Badge variant={getRiskBadgeColor(selectedTransaction.risk_level)}>
-                    {(selectedTransaction.risk_level || 'unknown').toUpperCase()}
+                    {selectedTransaction.risk_level.toUpperCase()}
                   </Badge>
                 </div>
                 <div>
