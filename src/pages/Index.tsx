@@ -1,51 +1,123 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Shield, CreditCard, ArrowRight, CheckCircle } from "lucide-react";
+import { Shield, CreditCard, ArrowRight, CheckCircle, MapPin } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [formData, setFormData] = useState({
     amount: "",
     channel: "",
     beneficiary: "",
+    beneficiaryAccount: "",
+    beneficiaryPhone: "",
     ifsc: "",
     senderAccount: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [location, setLocation] = useState<{lat: number, lng: number} | null>(null);
+
+  useEffect(() => {
+    // Get user's location for fraud detection
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.log("Location access denied:", error);
+        }
+      );
+    }
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  const validateTransaction = () => {
+    const amount = parseFloat(formData.amount);
+    const errors = [];
+
+    // NEFT/RTGS validation rules
+    if (formData.channel === 'NEFT' && (amount < 1 || amount > 1000000)) {
+      errors.push('NEFT transactions must be between ₹1 and ₹10,00,000');
+    }
+    if (formData.channel === 'RTGS' && amount < 200000) {
+      errors.push('RTGS transactions must be minimum ₹2,00,000');
+    }
+    if (formData.channel === 'UPI' && amount > 100000) {
+      errors.push('UPI transactions cannot exceed ₹1,00,000');
+    }
+
+    // IFSC validation
+    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(formData.ifsc)) {
+      errors.push('Invalid IFSC code format');
+    }
+
+    // Phone validation
+    if (!/^[6-9]\d{9}$/.test(formData.beneficiaryPhone)) {
+      errors.push('Invalid phone number format');
+    }
+
+    // Account number validation
+    if (!/^\d{9,18}$/.test(formData.beneficiaryAccount)) {
+      errors.push('Account number must be 9-18 digits');
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    const validationErrors = validateTransaction();
+    if (validationErrors.length > 0) {
+      validationErrors.forEach(error => toast.error(error));
+      return;
+    }
+
     setIsSubmitting(true);
     
-    // Simulate transaction processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Mock transaction storage
-    const transaction = {
-      id: Math.random().toString(36).substr(2, 9),
-      ...formData,
-      timestamp: new Date().toISOString(),
-      status: 'pending'
-    };
-    
-    const existingTransactions = JSON.parse(localStorage.getItem('transactions') || '[]');
-    existingTransactions.push(transaction);
-    localStorage.setItem('transactions', JSON.stringify(existingTransactions));
-    
-    setIsSubmitting(false);
-    setIsSubmitted(true);
-    toast("Transaction submitted successfully!");
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .insert([
+          {
+            amount: parseFloat(formData.amount),
+            channel: formData.channel,
+            beneficiary_name: formData.beneficiary,
+            beneficiary_account: formData.beneficiaryAccount,
+            beneficiary_phone: formData.beneficiaryPhone,
+            beneficiary_ifsc: formData.ifsc,
+            sender_account: formData.senderAccount,
+            sender_latitude: location?.lat,
+            sender_longitude: location?.lng,
+            user_id: null // For anonymous users
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      setIsSubmitted(true);
+      toast.success("Transaction submitted successfully!");
+    } catch (error) {
+      console.error('Error submitting transaction:', error);
+      toast.error("Failed to submit transaction. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSubmitted) {
@@ -90,6 +162,12 @@ const Index = () => {
           <CreditCard className="h-16 w-16 text-blue-600 mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Secure Transaction Portal</h1>
           <p className="text-xl text-gray-600">Protected by AI-powered fraud detection</p>
+          {location && (
+            <div className="flex items-center justify-center mt-2 text-sm text-gray-500">
+              <MapPin className="h-4 w-4 mr-1" />
+              Location verified for enhanced security
+            </div>
+          )}
         </div>
 
         <Card className="shadow-xl">
@@ -118,10 +196,9 @@ const Index = () => {
                     <SelectValue placeholder="Select channel" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="online">Online Banking</SelectItem>
-                    <SelectItem value="mobile">Mobile App</SelectItem>
-                    <SelectItem value="atm">ATM</SelectItem>
-                    <SelectItem value="branch">Branch</SelectItem>
+                    <SelectItem value="NEFT">NEFT (₹1 - ₹10,00,000)</SelectItem>
+                    <SelectItem value="RTGS">RTGS (₹2,00,000+)</SelectItem>
+                    <SelectItem value="UPI">UPI (up to ₹1,00,000)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -140,13 +217,39 @@ const Index = () => {
               </div>
 
               <div>
+                <Label htmlFor="beneficiaryAccount">Beneficiary Account Number</Label>
+                <Input
+                  id="beneficiaryAccount"
+                  type="text"
+                  placeholder="Enter beneficiary account number"
+                  value={formData.beneficiaryAccount}
+                  onChange={(e) => handleInputChange('beneficiaryAccount', e.target.value)}
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="beneficiaryPhone">Beneficiary Phone Number</Label>
+                <Input
+                  id="beneficiaryPhone"
+                  type="tel"
+                  placeholder="Enter beneficiary phone number"
+                  value={formData.beneficiaryPhone}
+                  onChange={(e) => handleInputChange('beneficiaryPhone', e.target.value)}
+                  required
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
                 <Label htmlFor="ifsc">IFSC Code</Label>
                 <Input
                   id="ifsc"
                   type="text"
                   placeholder="Enter IFSC code"
                   value={formData.ifsc}
-                  onChange={(e) => handleInputChange('ifsc', e.target.value)}
+                  onChange={(e) => handleInputChange('ifsc', e.target.value.toUpperCase())}
                   required
                   className="mt-1"
                 />
